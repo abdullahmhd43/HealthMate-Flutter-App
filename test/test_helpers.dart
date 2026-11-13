@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:healthmate/core/database/database_helper.dart';
 import 'package:healthmate/features/health_records/models/health_record.dart';
 import 'package:healthmate/features/health_records/repositories/health_record_repository.dart';
@@ -12,6 +14,19 @@ void initTestDatabaseFactory() {
 /// A brand-new, empty, in-memory database.
 DatabaseHelper newInMemoryHelper() =>
     DatabaseHelper(pathOverride: inMemoryDatabasePath);
+
+var _isolatedCounter = 0;
+
+/// A brand-new, empty database in its own temp file. Unlike the shared
+/// in-memory database (sqflite hands out the SAME in-memory instance to every
+/// helper until it is closed), nothing leaks from one test into the next,
+/// which matters for widget tests that cannot await a close in tearDown.
+DatabaseHelper newIsolatedHelper() {
+  final path = '${Directory.systemTemp.path}${Platform.pathSeparator}'
+      'healthmate_test_${DateTime.now().microsecondsSinceEpoch}_'
+      '${_isolatedCounter++}.db';
+  return DatabaseHelper(pathOverride: path);
+}
 
 HealthRecord record(
   String date, {

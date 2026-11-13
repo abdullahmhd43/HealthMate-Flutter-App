@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/core/database/database_helper.dart';
-import 'package:healthmate/core/utils/date_helper.dart';
 import 'package:healthmate/features/dashboard/providers/dashboard_provider.dart';
 import 'package:healthmate/features/health_records/providers/health_records_provider.dart';
 import 'package:healthmate/features/health_records/repositories/health_record_repository.dart';
@@ -130,6 +129,43 @@ void main() {
       expect(await provider.deleteRecord(9999), isNotNull);
     });
 
+    test('addWater creates today\'s record, then accumulates', () async {
+      await provider.init();
+      await provider.clearSampleRecords();
+
+      expect(await provider.addWater(250, now: fixedNow), isNull);
+      var today = provider.findByDate('2026-11-06')!;
+      expect(today.water, 250);
+      expect(today.steps, 0);
+      expect(today.calories, 0);
+
+      expect(await provider.addWater(500, now: fixedNow), isNull);
+      today = provider.findByDate('2026-11-06')!;
+      expect(today.water, 750);
+      expect(provider.allRecords, hasLength(1)); // still one record per day
+      expect(await repo.count(), 1);
+    });
+
+    test('addWater keeps the steps and calories already saved', () async {
+      await provider.init();
+      await provider.clearSampleRecords();
+      await provider.addRecord(
+          record('2026-11-06', steps: 8000, calories: 400, water: 1000));
+
+      await provider.addWater(250, now: fixedNow);
+
+      final today = provider.findByDate('2026-11-06')!;
+      expect(today.steps, 8000);
+      expect(today.calories, 400);
+      expect(today.water, 1250);
+    });
+
+    test('addWater rejects zero or negative amounts', () async {
+      await provider.init();
+      expect(await provider.addWater(0, now: fixedNow), isNotNull);
+      expect(await provider.addWater(-5, now: fixedNow), isNotNull);
+    });
+
     test('search filters visibleRecords but not allRecords', () async {
       await provider.init();
       await provider.clearSampleRecords();
@@ -168,14 +204,59 @@ void main() {
 
     test('clearSampleRecords keeps user-entered records', () async {
       await provider.init();
-      // Today's sample exists; remove it, then add a real record for it.
-      final today = provider.findByDate(DateHelper.toIso(fixedNow))!;
-      await provider.deleteRecord(today.id!);
-      await provider.addRecord(record('2026-11-06', steps: 777));
+      // Yesterday's sample exists; remove it, then add a real record for it.
+      final yesterday = provider.findByDate('2026-11-05')!;
+      await provider.deleteRecord(yesterday.id!);
+      await provider.addRecord(record('2026-11-05', steps: 777));
 
       await provider.clearSampleRecords();
 
       expect(provider.allRecords.single.steps, 777);
+    });
+
+    test('samples never include today', () async {
+      await provider.init();
+      expect(provider.findByDate('2026-11-06'), isNull);
+      expect(provider.findByDate('2026-11-05'), isNotNull);
+      expect(provider.findByDate('2026-10-23'), isNotNull); // 14 days ago
+    });
+
+    test('an edited sample is kept by "Clear samples"', () async {
+      await provider.init();
+      final sample = provider.findByDate('2026-11-05')!;
+      expect(provider.isSample(sample), isTrue);
+
+      await provider.updateRecord(sample.copyWith(steps: 4321));
+      await provider.clearSampleRecords();
+
+      expect(provider.allRecords.single.steps, 4321);
+    });
+
+    test('two quick water taps are both counted', () async {
+      await provider.init();
+      await provider.clearSampleRecords();
+
+      await Future.wait([
+        provider.addWater(250, now: fixedNow),
+        provider.addWater(500, now: fixedNow),
+      ]);
+
+      expect(provider.findByDate('2026-11-06')!.water, 750);
+    });
+
+    test('a water tap during a step sync does not lower the steps', () async {
+      await provider.init();
+      await provider.clearSampleRecords();
+      await provider.addRecord(record('2026-11-06', steps: 1000, water: 0));
+
+      await Future.wait([
+        provider.setTodaySteps(1500, now: fixedNow),
+        provider.addWater(250, now: fixedNow),
+      ]);
+
+      final today = provider.findByDate('2026-11-06')!;
+      expect(today.steps, 1500);
+      expect(today.water, 250);
     });
   });
 

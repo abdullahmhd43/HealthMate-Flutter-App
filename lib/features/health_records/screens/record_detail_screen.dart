@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/date_helper.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/health_level.dart';
+import '../../../core/widgets/level_chip.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/progress_ring.dart';
@@ -95,6 +97,7 @@ class RecordDetailScreen extends StatelessWidget {
             value: Formatters.steps(record.steps),
             goalText: 'Goal ${Formatters.steps(goals.steps)}',
             progress: UserGoals.progress(record.steps, goals.steps),
+            level: HealthLevel.of(record.steps, goals.steps),
           ),
           const SizedBox(height: 14),
           _DetailCard(
@@ -104,6 +107,7 @@ class RecordDetailScreen extends StatelessWidget {
             value: Formatters.calories(record.calories),
             goalText: 'Goal ${Formatters.calories(goals.calories)}',
             progress: UserGoals.progress(record.calories, goals.calories),
+            level: HealthLevel.of(record.calories, goals.calories),
           ),
           const SizedBox(height: 14),
           _DetailCard(
@@ -113,6 +117,7 @@ class RecordDetailScreen extends StatelessWidget {
             value: Formatters.water(record.water),
             goalText: 'Goal ${Formatters.water(goals.water)}',
             progress: UserGoals.progress(record.water, goals.water),
+            level: HealthLevel.of(record.water, goals.water),
           ),
         ],
       ),
@@ -128,6 +133,7 @@ class _DetailCard extends StatelessWidget {
     required this.value,
     required this.goalText,
     required this.progress,
+    required this.level,
   });
 
   final IconData icon;
@@ -136,6 +142,7 @@ class _DetailCard extends StatelessWidget {
   final String value;
   final String goalText;
   final double progress;
+  final HealthLevel level;
 
   @override
   Widget build(BuildContext context) {
@@ -165,6 +172,8 @@ class _DetailCard extends StatelessWidget {
                 Text('${Formatters.percent(progress)} of goal · $goalText',
                     style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 8),
+                LevelChip(level: level),
               ],
             ),
           ),

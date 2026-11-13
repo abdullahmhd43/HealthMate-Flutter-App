@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:healthmate/features/health_records/providers/health_records_provider.dart';
 import 'package:healthmate/features/health_records/screens/record_form_screen.dart';
 import 'package:healthmate/features/health_records/services/sample_data_service.dart';
+import 'package:healthmate/features/profile/providers/profile_provider.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -15,13 +16,17 @@ void main() {
     final prefs = await SharedPreferences.getInstance();
     // The database is opened lazily, and validation fails before any query,
     // so no database is touched in this test.
-    final repo = newRepository(newInMemoryHelper());
+    final repo = newRepository(newIsolatedHelper());
     final provider =
         HealthRecordsProvider(repo, SampleDataService(repo, prefs));
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<HealthRecordsProvider>.value(
-        value: provider,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<HealthRecordsProvider>.value(value: provider),
+          ChangeNotifierProvider<ProfileProvider>(
+              create: (_) => ProfileProvider(prefs)),
+        ],
         child: const MaterialApp(home: RecordFormScreen()),
       ),
     );
@@ -55,13 +60,17 @@ void main() {
   testWidgets('cancel button closes the form', (tester) async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();
-    final repo = newRepository(newInMemoryHelper());
+    final repo = newRepository(newIsolatedHelper());
     final provider =
         HealthRecordsProvider(repo, SampleDataService(repo, prefs));
 
     await tester.pumpWidget(
-      ChangeNotifierProvider<HealthRecordsProvider>.value(
-        value: provider,
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<HealthRecordsProvider>.value(value: provider),
+          ChangeNotifierProvider<ProfileProvider>(
+              create: (_) => ProfileProvider(prefs)),
+        ],
         child: MaterialApp(
           home: Builder(
             builder: (context) => Scaffold(
@@ -88,5 +97,44 @@ void main() {
     await tester.tap(find.byKey(const Key('cancel_button')));
     await tester.pumpAndSettle();
     expect(find.byType(RecordFormScreen), findsNothing);
+  });
+
+  testWidgets('calories are estimated from steps until the user edits them',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final repo = newRepository(newIsolatedHelper());
+    final provider =
+        HealthRecordsProvider(repo, SampleDataService(repo, prefs));
+
+    await tester.pumpWidget(
+      MultiProvider(
+        providers: [
+          ChangeNotifierProvider<HealthRecordsProvider>.value(value: provider),
+          ChangeNotifierProvider<ProfileProvider>(
+              create: (_) => ProfileProvider(prefs)),
+        ],
+        child: const MaterialApp(home: RecordFormScreen()),
+      ),
+    );
+
+    String calories() => tester
+        .widget<TextFormField>(find.byKey(const Key('calories_field')))
+        .controller!
+        .text;
+
+    await tester.enterText(find.byKey(const Key('steps_field')), '10000');
+    await tester.pump();
+    expect(calories(), '400'); // default 0.04 kcal per step
+
+    await tester.enterText(find.byKey(const Key('calories_field')), '123');
+    await tester.enterText(find.byKey(const Key('steps_field')), '5000');
+    await tester.pump();
+    expect(calories(), '123'); // user's own value is kept
+
+    await tester.ensureVisible(find.byKey(const Key('estimate_button')));
+    await tester.tap(find.byKey(const Key('estimate_button')));
+    await tester.pump();
+    expect(calories(), '200'); // estimate button recalculates
   });
 }

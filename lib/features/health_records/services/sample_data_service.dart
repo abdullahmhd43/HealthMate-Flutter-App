@@ -20,7 +20,8 @@ class SampleDataService {
   static const String _seededKey = 'sample_data_seeded';
   static const String _idsKey = 'sample_record_ids';
 
-  // steps, calories, water (ml) for the last 14 days, oldest first.
+  // steps, calories, water (ml) for the 14 days BEFORE today, oldest first.
+  // Today is left empty so real steps and water are never mixed with samples.
   static const List<List<int>> _samples = [
     [6240, 310, 1800],
     [8120, 420, 2100],
@@ -50,14 +51,27 @@ class SampleDataService {
     if (_prefs.getBool(_seededKey) ?? false) return false;
     final existing = await _repository.count();
     // Never seed over real data, and never seed again after the first run.
+    if (existing > 0) {
+      await _prefs.setBool(_seededKey, true);
+      return false;
+    }
+    final added = await _insertSamples();
+    // Marked only after a successful insert, so a failure is retried.
     await _prefs.setBool(_seededKey, true);
-    if (existing > 0) return false;
-    return await _insertSamples() > 0;
+    return added > 0;
   }
 
-  /// Adds sample records for any of the last 14 days that have no record.
+  /// Adds sample records for any of the 14 days before today that have none.
   /// Returns how many were added.
   Future<int> restoreSamples() => _insertSamples();
+
+  /// Stops treating [id] as a sample (the user edited it or real data was
+  /// added to it), so "Clear samples" no longer deletes it.
+  Future<void> forget(int id) async {
+    final ids = sampleIds;
+    if (!ids.remove(id)) return;
+    await _prefs.setStringList(_idsKey, ids.map((e) => '$e').toList());
+  }
 
   /// Deletes only the sample rows. Returns how many were removed.
   Future<int> clearSamples() async {
@@ -71,7 +85,7 @@ class SampleDataService {
     final today = DateHelper.dateOnly(_clock());
     final records = <HealthRecord>[];
     for (var i = 0; i < _samples.length; i++) {
-      final daysAgo = _samples.length - 1 - i;
+      final daysAgo = _samples.length - i; // 14 ... 1 (never today)
       final date = DateTime(today.year, today.month, today.day - daysAgo);
       records.add(HealthRecord(
         date: DateHelper.toIso(date),

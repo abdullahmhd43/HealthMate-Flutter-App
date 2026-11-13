@@ -14,6 +14,7 @@ class Formatters {
 
   static String water(num value) => '${_int.format(value.round())} ml';
 
-  static String percent(double fraction) =>
-      '${(fraction * 100).clamp(0, 999).round()}%';
+  static String percent(double fraction) => fraction.isNaN
+      ? '0%'
+      : '${(fraction * 100).clamp(0, 999).round()}%';
 }

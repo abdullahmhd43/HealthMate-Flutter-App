@@ -4,18 +4,25 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/date_helper.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/health_level.dart';
 import '../../../core/utils/shell_controller.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/section_header.dart';
+import '../../achievements/widgets/streak_card.dart';
 import '../../analytics/widgets/weekly_bar_chart.dart';
 import '../../health_records/providers/health_records_provider.dart';
+import '../../profile/providers/profile_provider.dart';
+import '../../profile/screens/profile_screen.dart';
 import '../../health_records/screens/record_detail_screen.dart';
 import '../../health_records/screens/record_form_screen.dart';
 import '../../health_records/widgets/record_tile.dart';
 import '../../settings/models/user_goals.dart';
+import '../../summary/widgets/today_summary_card.dart';
+import '../../wellness/widgets/wellness_summary_card.dart';
 import '../providers/dashboard_provider.dart';
 import '../widgets/metric_card.dart';
+import '../widgets/quick_water_card.dart';
 
 /// Home tab: today's summary, weekly chart and recent records.
 class DashboardScreen extends StatelessWidget {
@@ -27,10 +34,22 @@ class DashboardScreen extends StatelessWidget {
     ));
   }
 
+  Future<void> _addWater(BuildContext context, int ml) async {
+    final records = context.read<HealthRecordsProvider>();
+    final messenger = ScaffoldMessenger.of(context);
+    final error =
+        await records.addWater(ml, now: context.read<DashboardProvider>().now);
+    messenger.hideCurrentSnackBar();
+    messenger.showSnackBar(
+      SnackBar(content: Text(error ?? 'Added $ml ml of water')),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final records = context.watch<HealthRecordsProvider>();
     final dashboard = context.watch<DashboardProvider>();
+    final profile = context.watch<ProfileProvider>().profile;
     final theme = Theme.of(context);
     final stats = dashboard.stats;
     final goals = dashboard.goals;
@@ -60,7 +79,8 @@ class DashboardScreen extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 110),
           children: [
             Text(
-              '${DateHelper.greeting(now)} 👋',
+              '${DateHelper.greeting(now)}'
+              '${profile.name.isEmpty ? '' : ', ${profile.name}'} 👋',
               style: theme.textTheme.headlineSmall
                   ?.copyWith(fontWeight: FontWeight.w800),
             ),
@@ -71,6 +91,32 @@ class DashboardScreen extends StatelessWidget {
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
             ),
             const SizedBox(height: 20),
+            const TodaySummaryCard(),
+            const SizedBox(height: 16),
+            if (!profile.isComplete) ...[
+              AppCard(
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                      builder: (_) => const ProfileScreen()),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.person_pin_rounded,
+                        color: theme.colorScheme.primary),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Set up your profile for BMI and goals that fit you',
+                        style: theme.textTheme.bodyMedium
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right_rounded),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
             if (!stats.hasRecords)
               SizedBox(
                 height: 420,
@@ -98,6 +144,7 @@ class DashboardScreen extends StatelessWidget {
                 unit: 'steps',
                 progress: UserGoals.progress(stats.today.steps, goals.steps),
                 goalText: 'Goal ${Formatters.steps(goals.steps)}',
+                level: HealthLevel.of(stats.today.steps, goals.steps),
               ),
               const SizedBox(height: 12),
               Row(
@@ -112,6 +159,8 @@ class DashboardScreen extends StatelessWidget {
                       progress: UserGoals.progress(
                           stats.today.calories, goals.calories),
                       goalText: 'Goal ${Formatters.integer(goals.calories)}',
+                      level: HealthLevel.of(
+                          stats.today.calories, goals.calories),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -125,10 +174,18 @@ class DashboardScreen extends StatelessWidget {
                       progress:
                           UserGoals.progress(stats.today.water, goals.water),
                       goalText: 'Goal ${Formatters.integer(goals.water)}',
+                      level:
+                          HealthLevel.of(stats.today.water, goals.water),
                     ),
                   ),
                 ],
               ),
+              const SizedBox(height: 12),
+              QuickWaterCard(onAdd: (ml) => _addWater(context, ml)),
+              const SizedBox(height: 12),
+              const StreakCard(),
+              const SizedBox(height: 12),
+              const WellnessSummaryCard(),
               const SizedBox(height: 12),
               const SectionHeader(title: 'Weekly activity'),
               AppCard(

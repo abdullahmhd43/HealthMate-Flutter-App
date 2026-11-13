@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/calorie_estimator.dart';
 import '../../../core/utils/date_helper.dart';
 import '../../../core/utils/validators.dart';
+import '../../profile/providers/profile_provider.dart';
 import '../models/health_record.dart';
 import '../providers/health_records_provider.dart';
 
@@ -37,10 +39,15 @@ class _RecordFormScreenState extends State<RecordFormScreen> {
   bool _saving = false;
   String? _loadError;
 
+  /// True once the user types their own calories; stops auto-estimating.
+  bool _caloriesEdited = false;
+
   @override
   void initState() {
     super.initState();
+    _stepsController.addListener(_autoEstimateCalories);
     if (widget.isEditing) {
+      _caloriesEdited = true;
       _loading = true;
       WidgetsBinding.instance.addPostFrameCallback((_) => _loadRecord());
     } else {
@@ -51,10 +58,38 @@ class _RecordFormScreenState extends State<RecordFormScreen> {
   @override
   void dispose() {
     _dateController.dispose();
+    _stepsController.removeListener(_autoEstimateCalories);
     _stepsController.dispose();
     _caloriesController.dispose();
     _waterController.dispose();
     super.dispose();
+  }
+
+  void _autoEstimateCalories() {
+    if (_caloriesEdited) return;
+    final estimate = CalorieEstimator.fromText(
+      _stepsController.text,
+      kcalPerStep: context.read<ProfileProvider>().profile.kcalPerStep,
+    );
+    _caloriesController.text = estimate == null ? '' : '$estimate';
+  }
+
+  void _estimateNow() {
+    final estimate = CalorieEstimator.fromText(
+      _stepsController.text,
+      kcalPerStep: context.read<ProfileProvider>().profile.kcalPerStep,
+    );
+    if (estimate == null) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+            content: Text('Enter a valid number of steps first')));
+      return;
+    }
+    setState(() {
+      _caloriesEdited = false;
+      _caloriesController.text = '$estimate';
+    });
   }
 
   Future<void> _loadRecord() async {
@@ -207,6 +242,16 @@ class _RecordFormScreenState extends State<RecordFormScreen> {
             icon: Icons.local_fire_department_rounded,
             color: AppColors.calories,
             validator: Validators.calories,
+            onChanged: (_) => _caloriesEdited = true,
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              key: const Key('estimate_button'),
+              onPressed: _estimateNow,
+              icon: const Icon(Icons.auto_fix_high_rounded, size: 18),
+              label: const Text('Estimate calories from steps'),
+            ),
           ),
           const SizedBox(height: 16),
           _NumberField(
@@ -254,6 +299,7 @@ class _NumberField extends StatelessWidget {
     required this.validator,
     this.action = TextInputAction.next,
     this.onSubmitted,
+    this.onChanged,
   });
 
   final Key fieldKey;
@@ -264,11 +310,13 @@ class _NumberField extends StatelessWidget {
   final String? Function(String?) validator;
   final TextInputAction action;
   final VoidCallback? onSubmitted;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
     return TextFormField(
       key: fieldKey,
+      onChanged: onChanged,
       controller: controller,
       keyboardType: const TextInputType.numberWithOptions(signed: true),
       textInputAction: action,

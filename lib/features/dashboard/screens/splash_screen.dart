@@ -3,6 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../../core/constants/app_constants.dart';
 import '../../health_records/providers/health_records_provider.dart';
+import '../../reminders/providers/reminder_provider.dart';
+import '../../steps/providers/step_counter_provider.dart';
+import '../../weight/providers/weight_provider.dart';
+import '../../wellness/providers/wellness_provider.dart';
 import 'main_shell.dart';
 
 /// Branded splash. Opens the database and loads records while it animates,
@@ -35,11 +39,19 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _start() async {
     final records = context.read<HealthRecordsProvider>();
+    final weights = context.read<WeightProvider>();
+    final wellness = context.read<WellnessProvider>();
     await Future.wait([
       records.init(),
+      weights.init(),
+      wellness.init(),
       Future<void>.delayed(const Duration(milliseconds: 1800)),
     ]);
     if (!mounted) return;
+    // Not awaited: these talk to the phone (permissions, sensor, alarms) and
+    // must never delay or block the app from opening.
+    context.read<ReminderProvider>().init();
+    context.read<StepCounterProvider>().init();
     Navigator.of(context).pushReplacement(
       PageRouteBuilder<void>(
         transitionDuration: const Duration(milliseconds: 500),

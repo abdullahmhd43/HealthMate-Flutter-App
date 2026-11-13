@@ -6,8 +6,13 @@ import '../../../core/utils/formatters.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/section_header.dart';
 import '../../health_records/providers/health_records_provider.dart';
+import '../../profile/providers/profile_provider.dart';
+import '../../profile/screens/profile_screen.dart';
+import '../../weight/providers/weight_provider.dart';
+import '../../weight/screens/weight_screen.dart';
 import '../models/user_goals.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/automation_card.dart';
 import '../widgets/goal_dialog.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -42,6 +47,8 @@ class SettingsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final records = context.watch<HealthRecordsProvider>();
+    final profile = context.watch<ProfileProvider>().profile;
+    final latestWeight = context.watch<WeightProvider>().latest;
     final goals = settings.goals;
     final theme = Theme.of(context);
 
@@ -50,6 +57,39 @@ class SettingsScreen extends StatelessWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 110),
         children: [
+          const SectionHeader(title: 'Profile & body'),
+          AppCard(
+            padding: const EdgeInsets.symmetric(vertical: 4),
+            child: Column(
+              children: [
+                _GoalTile(
+                  icon: Icons.person_rounded,
+                  color: Theme.of(context).colorScheme.primary,
+                  title: 'Profile',
+                  value: profile.isComplete
+                      ? '${profile.name.isEmpty ? 'Your profile' : profile.name}'
+                          ' · BMI ${profile.bmi!.toStringAsFixed(1)}'
+                      : 'Not set up yet',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                        builder: (_) => const ProfileScreen()),
+                  ),
+                ),
+                _GoalTile(
+                  icon: Icons.monitor_weight_rounded,
+                  color: Theme.of(context).colorScheme.secondary,
+                  title: 'Weight tracker',
+                  value: latestWeight == null
+                      ? 'No entries yet'
+                      : '${latestWeight.weightKg.toStringAsFixed(1)} kg',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                        builder: (_) => const WeightScreen()),
+                  ),
+                ),
+              ],
+            ),
+          ),
           const SectionHeader(title: 'Daily goals'),
           AppCard(
             padding: const EdgeInsets.symmetric(vertical: 4),
@@ -103,6 +143,8 @@ class SettingsScreen extends StatelessWidget {
               ],
             ),
           ),
+          const SectionHeader(title: 'Reminders & tracking'),
+          const AutomationCard(),
           const SectionHeader(title: 'Appearance'),
           AppCard(
             child: Column(

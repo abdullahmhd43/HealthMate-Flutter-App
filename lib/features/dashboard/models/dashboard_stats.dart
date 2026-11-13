@@ -62,7 +62,7 @@ class DashboardStats {
 
   final int totalRecords;
 
-  /// Average per recorded day (0 when there are no records).
+  /// Average per day that has that value (0 when there is none).
   final double averageSteps;
   final double averageWater;
   final int totalCalories;
@@ -88,11 +88,17 @@ class DashboardStats {
     var totalSteps = 0;
     var totalWater = 0;
     var totalCalories = 0;
+    var stepDays = 0;
+    var waterDays = 0;
     HealthRecord? best;
     for (final r in records) {
       totalSteps += r.steps;
       totalWater += r.water;
       totalCalories += r.calories;
+      // A water-only (or steps-only) record, such as one created by the water
+      // quick-add buttons, must not drag the other average down with a zero.
+      if (r.steps > 0) stepDays++;
+      if (r.water > 0) waterDays++;
       if (best == null || r.steps > best.steps) best = r;
     }
     final n = records.length;
@@ -103,8 +109,8 @@ class DashboardStats {
       month: totalsForMonth(records, today),
       recent: sorted.take(recentCount).toList(),
       totalRecords: n,
-      averageSteps: n == 0 ? 0 : totalSteps / n,
-      averageWater: n == 0 ? 0 : totalWater / n,
+      averageSteps: stepDays == 0 ? 0 : totalSteps / stepDays,
+      averageWater: waterDays == 0 ? 0 : totalWater / waterDays,
       totalCalories: totalCalories,
       bestDay: best,
     );

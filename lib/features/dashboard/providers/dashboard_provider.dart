@@ -27,6 +27,11 @@ class DashboardProvider extends ChangeNotifier {
   UserGoals get goals => _settings.goals;
   DateTime get now => _clock();
 
+  /// Recomputes "today" and everything derived from it. Called when the app
+  /// comes back to the foreground, so a day change is picked up without any
+  /// record having to change first.
+  void refresh() => _onSourceChanged();
+
   void _onSourceChanged() {
     _recompute();
     notifyListeners();

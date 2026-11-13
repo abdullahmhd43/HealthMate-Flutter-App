@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/health_level.dart';
+import '../../../core/widgets/level_chip.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/progress_ring.dart';
 
@@ -15,6 +17,7 @@ class MetricCard extends StatelessWidget {
     required this.unit,
     required this.progress,
     required this.goalText,
+    required this.level,
   });
 
   final IconData icon;
@@ -24,6 +27,7 @@ class MetricCard extends StatelessWidget {
   final String unit;
   final double progress;
   final String goalText;
+  final HealthLevel level;
 
   @override
   Widget build(BuildContext context) {
@@ -84,6 +88,8 @@ class MetricCard extends StatelessWidget {
           Text(goalText,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 8),
+          LevelChip(level: level),
         ],
       ),
     );

@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../../../core/constants/app_constants.dart';
 import '../../../core/utils/date_helper.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../core/utils/health_level.dart';
+import '../../../core/widgets/level_chip.dart';
 import '../../../core/widgets/app_card.dart';
 import '../../../core/widgets/empty_state.dart';
 import '../../../core/widgets/progress_ring.dart';
@@ -76,8 +78,10 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                   label: DateHelper.isSameDay(day, today)
                       ? 'Today'
                       : DateHelper.display(day),
-                  onPrevious: () => setState(() => _selectedDay =
-                      DateTime(day.year, day.month, day.day - 1)),
+                  onPrevious: day.isAfter(AppConstants.earliestDate)
+                      ? () => setState(() => _selectedDay =
+                          DateTime(day.year, day.month, day.day - 1))
+                      : null,
                   onNext: day.isBefore(today)
                       ? () => setState(() => _selectedDay =
                           DateTime(day.year, day.month, day.day + 1))
@@ -104,6 +108,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         label: 'Steps',
                         progress:
                             UserGoals.progress(daySummary.steps, goals.steps),
+                        level: HealthLevel.of(daySummary.steps, goals.steps),
                       ),
                       _GoalRing(
                         color: AppColors.calories,
@@ -111,6 +116,8 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         value: Formatters.integer(daySummary.calories),
                         label: 'kcal',
                         progress: UserGoals.progress(
+                            daySummary.calories, goals.calories),
+                        level: HealthLevel.of(
                             daySummary.calories, goals.calories),
                       ),
                       _GoalRing(
@@ -120,6 +127,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen> {
                         label: 'ml water',
                         progress:
                             UserGoals.progress(daySummary.water, goals.water),
+                        level: HealthLevel.of(daySummary.water, goals.water),
                       ),
                     ],
                   ),
@@ -305,7 +313,7 @@ class _Navigator extends StatelessWidget {
   });
 
   final String label;
-  final VoidCallback onPrevious;
+  final VoidCallback? onPrevious;
   final VoidCallback? onNext;
 
   @override
@@ -344,6 +352,7 @@ class _GoalRing extends StatelessWidget {
     required this.value,
     required this.label,
     required this.progress,
+    required this.level,
   });
 
   final Color color;
@@ -351,6 +360,7 @@ class _GoalRing extends StatelessWidget {
   final String value;
   final String label;
   final double progress;
+  final HealthLevel level;
 
   @override
   Widget build(BuildContext context) {
@@ -384,6 +394,8 @@ class _GoalRing extends StatelessWidget {
           Text(label,
               style: theme.textTheme.bodySmall
                   ?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+          const SizedBox(height: 6),
+          LevelChip(level: level, compact: true),
         ],
       ),
     );

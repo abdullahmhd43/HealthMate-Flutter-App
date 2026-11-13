@@ -11,13 +11,22 @@ class AppConstants {
 
   // Database
   static const String databaseName = 'healthmate.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 3;
   static const String recordsTable = 'health_records';
+  static const String weightTable = 'weight_logs';
+  static const String sleepTable = 'sleep_logs';
+  static const String workoutTable = 'workout_logs';
+  static const String moodTable = 'mood_logs';
 
   // Default daily goals
   static const int defaultStepGoal = 10000;
   static const int defaultWaterGoal = 2500;
   static const int defaultCalorieGoal = 500;
+  static const double sleepGoalHours = 8;
+  static const int workoutGoalMinutes = 30;
+
+  // Rough average energy used per step for an adult (kcal).
+  static const double caloriesPerStep = 0.04;
 
   // Validation limits (sanity bounds for a single day)
   static const int maxSteps = 200000;
@@ -37,6 +46,9 @@ class AppColors {
   static const Color steps = Color(0xFF2E9E5B); // green
   static const Color calories = Color(0xFFF2711C); // orange
   static const Color water = Color(0xFF1E88E5); // blue
+  static const Color sleep = Color(0xFF5C6BC0); // indigo
+  static const Color workout = Color(0xFF8E24AA); // purple
+  static const Color mood = Color(0xFFF9A825); // amber
   static const Color lightBackground = Color(0xFFF4F7FB);
   static const Color darkBackground = Color(0xFF0E1420);
 }

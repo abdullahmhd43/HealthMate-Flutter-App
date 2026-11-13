@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/constants/app_constants.dart';
+import '../../../core/utils/calorie_estimator.dart';
 import '../../../core/utils/date_helper.dart';
 import '../../../core/utils/validators.dart';
 import '../models/health_record.dart';
@@ -26,6 +28,25 @@ class HealthRecordsProvider extends ChangeNotifier {
   String? _error;
   String _searchQuery = '';
   DateTimeRange? _range;
+
+  /// Read-modify-write operations (water, sensor steps) run one at a time, and
+  /// always start from the row stored in SQLite, so two quick actions can
+  /// never overwrite each other with stale values.
+  Future<void> _queue = Future<void>.value();
+
+  Future<T> _serial<T>(Future<T> Function() action) {
+    final result = _queue.then((_) => action());
+    _queue = result.then((_) {}, onError: (_) {});
+    return result;
+  }
+
+  Future<HealthRecord?> _stored(String isoDate) async {
+    try {
+      return await _repository.getByDate(isoDate);
+    } on RepositoryException {
+      return findByDate(isoDate);
+    }
+  }
 
   List<HealthRecord> get allRecords => _all;
   List<HealthRecord> get visibleRecords => _visible;
@@ -79,11 +100,85 @@ class HealthRecordsProvider extends ChangeNotifier {
       });
 
   /// Updates a record. Returns null on success, otherwise a message.
-  Future<String?> updateRecord(HealthRecord record) =>
-      _mutate(() => _repository.update(record), pre: () {
-        return Validators.duplicateDate(record.date, _all,
-            excludeId: record.id);
-      });
+  Future<String?> updateRecord(HealthRecord record) async {
+    final error =
+        await _mutate(() => _repository.update(record), pre: () {
+      return Validators.duplicateDate(record.date, _all,
+          excludeId: record.id);
+    });
+    // An edited sample is now the user's own data: "Clear samples" must keep it.
+    if (error == null && record.id != null) {
+      await _samples.forget(record.id!);
+    }
+    return error;
+  }
+
+  /// Adds [ml] of water to today's record, creating today's record (with 0
+  /// steps and 0 calories) if there is none. Returns null on success,
+  /// otherwise a message.
+  Future<String?> addWater(int ml, {DateTime? now}) {
+    if (ml <= 0) {
+      return Future.value('Water amount must be greater than 0');
+    }
+    return _serial(() => _addWater(ml, now: now));
+  }
+
+  Future<String?> _addWater(int ml, {DateTime? now}) async {
+    final today = DateHelper.toIso(now ?? DateTime.now());
+    final existing = await _stored(today);
+    if (existing == null) {
+      return addRecord(HealthRecord(
+        date: today,
+        steps: 0,
+        calories: 0,
+        water: ml.clamp(0, AppConstants.maxWater).toInt(),
+      ));
+    }
+    final total = (existing.water + ml).clamp(0, AppConstants.maxWater).toInt();
+    return updateRecord(existing.copyWith(water: total));
+  }
+
+  /// Saves steps counted by the phone sensor into today's record.
+  ///
+  /// Steps only ever go up (a higher manual entry is never overwritten), and
+  /// water and any manually entered calories are kept: only the calories for
+  /// the *new* steps are added. Creates today's record if there is none.
+  /// Returns null on success, otherwise a message.
+  Future<String?> setTodaySteps(
+    int steps, {
+    double? kcalPerStep,
+    DateTime? now,
+  }) =>
+      _serial(() => _setTodaySteps(steps, kcalPerStep: kcalPerStep, now: now));
+
+  Future<String?> _setTodaySteps(
+    int steps, {
+    double? kcalPerStep,
+    DateTime? now,
+  }) async {
+    final clamped = steps.clamp(0, AppConstants.maxSteps).toInt();
+    final today = DateHelper.toIso(now ?? DateTime.now());
+    final existing = await _stored(today);
+    if (existing == null) {
+      return addRecord(HealthRecord(
+        date: today,
+        steps: clamped,
+        calories: CalorieEstimator.fromSteps(clamped, kcalPerStep: kcalPerStep)
+            .clamp(0, AppConstants.maxCalories)
+            .toInt(),
+        water: 0,
+      ));
+    }
+    if (clamped <= existing.steps) return null;
+    final extra = CalorieEstimator.fromSteps(clamped - existing.steps,
+        kcalPerStep: kcalPerStep);
+    return updateRecord(existing.copyWith(
+      steps: clamped,
+      calories: (existing.calories + extra)
+          .clamp(0, AppConstants.maxCalories)
+          .toInt(),
+    ));
+  }
 
   /// Deletes a record from SQLite. Returns null on success, otherwise a message.
   Future<String?> deleteRecord(int id) =>

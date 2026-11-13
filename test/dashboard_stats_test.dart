@@ -77,6 +77,17 @@ void main() {
       expect(stats.averageWater, 8000 / 5);
     });
 
+    test('a water-only record does not pull the step average down', () {
+      final withWaterOnly = [
+        record('2026-11-05', steps: 6000, water: 2000),
+        record('2026-11-06', steps: 0, calories: 0, water: 250),
+      ];
+      final s =
+          DashboardStats.compute(withWaterOnly, now: DateTime(2026, 11, 6));
+      expect(s.averageSteps, 6000);
+      expect(s.averageWater, (2000 + 250) / 2);
+    });
+
     test('total calories sums every record', () {
       expect(stats.totalCalories, 1600);
     });

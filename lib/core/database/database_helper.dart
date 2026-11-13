@@ -54,16 +54,66 @@ class DatabaseHelper {
         water INTEGER NOT NULL
       )
     ''');
+    await _createWeightTable(db);
+    await _createWellnessTables(db);
+  }
+
+  Future<void> _createWeightTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.weightTable} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL UNIQUE,
+        weight_kg REAL NOT NULL
+      )
+    ''');
+  }
+
+  /// Sleep, workout and mood logs (added in database version 3).
+  Future<void> _createWellnessTables(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.sleepTable} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL UNIQUE,
+        hours REAL NOT NULL,
+        quality INTEGER NOT NULL
+      )
+    ''');
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.workoutTable} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL,
+        type TEXT NOT NULL,
+        minutes INTEGER NOT NULL,
+        calories INTEGER NOT NULL DEFAULT 0,
+        note TEXT NOT NULL DEFAULT ''
+      )
+    ''');
+    await db.execute(
+      'CREATE INDEX IF NOT EXISTS idx_workout_logs_date '
+      'ON ${AppConstants.workoutTable}(date)',
+    );
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS ${AppConstants.moodTable} (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        date TEXT NOT NULL UNIQUE,
+        mood INTEGER NOT NULL,
+        note TEXT NOT NULL DEFAULT ''
+      )
+    ''');
   }
 
   /// Runs when [AppConstants.databaseVersion] is raised. Add each schema
   /// change as an `if (oldVersion < N)` block so existing user data is kept.
   Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Version 1 is the first schema, so there is nothing to migrate yet.
-    // Example for a future version 2:
-    // if (oldVersion < 2) {
-    //   await db.execute('ALTER TABLE health_records ADD COLUMN notes TEXT');
-    // }
+    // Version 2 added the weight_logs table. health_records is untouched, so
+    // existing user data is kept.
+    if (oldVersion < 2) {
+      await _createWeightTable(db);
+    }
+    // Version 3 added sleep_logs, workout_logs and mood_logs.
+    if (oldVersion < 3) {
+      await _createWellnessTables(db);
+    }
   }
 
   Future<void> close() async {
