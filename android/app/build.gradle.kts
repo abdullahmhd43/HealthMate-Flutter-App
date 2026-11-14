@@ -30,6 +30,10 @@ defaultConfig {
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
+            // R8 shrinking strips classes flutter_local_notifications needs and
+            // can make the release APK crash on launch, so keep it off.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }
